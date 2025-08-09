@@ -18,7 +18,7 @@ class EncoderCNN(nn.Module):
         self.linear = nn.Linear(model.fc.in_features, embed_size)
 
         # Dropout, pas besoin de relu deja dans le model
-        self.dropout = nn.Dropout(0.5)
+        self.dropout = nn.Dropout(0.3)
 
         for param in self.resnet.parameters():
             param.requires_grad = False  # on gèle tout d’abord
@@ -106,7 +106,11 @@ class ImageCaptioningModel(nn.Module):
         image = image.to(device)
         # Encode image
         with torch.no_grad():
-            feature = self.encoderCNN(image.unsqueeze(0))  # (1, embed_size)
+            # image doit être de forme (1, 3, H, W)
+            if image.dim() == 3:
+                feature = self.encoderCNN(image.unsqueeze(0))  # (1, embed_size)
+            else:
+                feature = self.encoderCNN(image)  # (1, embed_size)
 
         # Initial LSTM input = feature, no hidden state
         inputs = feature.unsqueeze(1)  # (1, 1, embed_size)
@@ -119,7 +123,7 @@ class ImageCaptioningModel(nn.Module):
             word = vocab.idx2word[predicted.item()]
             result.append(word)
 
-            if word.lower() == "<EOS>":
+            if word.lower() == "<eos>":
                 break
 
             # 3. Reinject predicted word as input

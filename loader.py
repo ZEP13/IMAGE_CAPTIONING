@@ -6,7 +6,6 @@ import torch
 from torch.utils.data import DataLoader, Dataset
 from torchvision.transforms import transforms # resize et normaliser les images
 from torch.nn.utils.rnn import pad_sequence
-from torch.utils.data import Subset
 
 spacy_eng = spacy.load("en_core_web_sm")
 
@@ -51,9 +50,9 @@ class Vocab:
             
             
 class DatasetFLICK(Dataset):
-    def __init__(self, dir, caption, transform, freq_threshold=5):
+    def __init__(self, dir, caption, transform, freq_threshold=2):
         self.dir = dir
-        self.df = pd.read_csv(caption, sep='|')
+        self.df = pd.read_csv(caption, sep='|', skipinitialspace=True)
         self.transform = transform
 
         # Nettoyage des colonnes
@@ -64,8 +63,14 @@ class DatasetFLICK(Dataset):
         # Supprimer les lignes avec commentaires manquants
         self.df = self.df.dropna(subset=["comment"])
 
+        # Garder seulement les lignes dont l'image existe réellement
+        self.df = self.df[self.df["image_name"].apply(
+            lambda img: os.path.isfile(os.path.join(self.dir, img))
+        )]
+
         self.vocab= Vocab(freq_threshold)
         self.vocab.build_vocab(self.df["comment"].tolist())
+        print(f"Vocab size: {len(self.vocab)}")  # Pour debug
 
     def __len__(self):
         return len(self.df)
@@ -75,7 +80,9 @@ class DatasetFLICK(Dataset):
         caption = self.df["comment"][index]
         imgid = self.df["image_name"][index]
 
-        img = Image.open(os.path.join(self.dir, imgid)).convert("RGB")
+        img_path = os.path.join(self.dir, imgid)
+
+        img = Image.open(img_path).convert("RGB")
 
         if self.transform is not None:
             img = self.transform(img)
@@ -114,9 +121,10 @@ def loader(
         worker=8,
         val_split=0.1,
         shuffle=True,
-        memory=True
+        memory=True,
+        freq_threshold=2   # Ajouté ici
 ):
-    full_dataset = DatasetFLICK(root_folder, desc_file, transform=transform)
+    full_dataset = DatasetFLICK(root_folder, desc_file, transform=transform, freq_threshold=freq_threshold)
     total_len = len(full_dataset)
     val_len = int(total_len * val_split)
     train_len = total_len - val_len
@@ -156,18 +164,18 @@ if __name__ == "__main__":
         "flickr30k_images/flickr30k_images/", "flickr30k_images/results.csv", transform=transform
     )
 
-    print("Train loader batches:")
-    for idx, (imgs, captions) in enumerate(train_loader):
-        print(f"Batch {idx}: imgs {imgs.shape}, captions {captions.shape}")
-        if idx == 2:  # juste pour test, on stoppe au bout de 3 batches
-            break
+    # print("Train loader batches:")
+    # for idx, (imgs, captions) in enumerate(train_loader):
+    #     print(f"Batch {idx}: imgs {imgs.shape}, captions {captions.shape}")
+    #     if idx == 2:  # juste pour test, on stoppe au bout de 3 batches
+    #         break
 
-    print("\nValidation loader batches:")
-    for idx, (imgs, captions) in enumerate(val_loader):
-        print(f"Batch {idx}: imgs {imgs.shape}, captions {captions.shape}")
-        if idx == 2:
-            break
-
+    # print("\nValidation loader batches:")
+    # for idx, (imgs, captions) in enumerate(val_loader):
+    #     print(f"Batch {idx}: imgs {imgs.shape}, captions {captions.shape}")
+    #     if idx == 2:
+    #         break
+    print(f"Nombre d'images/descriptions valides : {len(dataset)}")
 
 """
 

@@ -63,12 +63,15 @@ def train():
     )
 
     train_loader, val_loader, full_dataset  = loader(
-        root_folder="flickr30k_images/flickr30k_images/",
+        root_folder="flickr30k_images/flickr30k_images/",  # Correction du chemin
         desc_file="flickr30k_images/results.csv",
         transform=transform,
         batchsize=16,
-        worker=8
+        worker=8,
+        freq_threshold=2  # Diminue le seuil pour plus de vocabulaire
     )
+
+    print(f"Vocab size: {len(full_dataset.vocab)}")  # Pour debug
 
     # Hyperparamètres après chargement du dataset
     embed_size = 256
@@ -89,6 +92,8 @@ def train():
 
     writer = SummaryWriter(log_dir="runs/image_captioning")
     sample_images, sample_captions = next(iter(train_loader))
+    sample_images = sample_images.to(device).float()      # <-- move to device
+    sample_captions = sample_captions.to(device)          # <-- move to device
     writer.add_graph(model, input_to_model=(sample_images, sample_captions))
 
     os.makedirs("checkpoints", exist_ok=True)
@@ -98,7 +103,8 @@ def train():
         
         for idx, (images, captions) in enumerate(tqdm(train_loader)):
 
-            images, captions = images.to(device), captions.to(device)
+            images = images.to(device).float()
+            captions = captions.to(device)
             
             lengths = []
             max_len = captions.size(1)
@@ -106,11 +112,15 @@ def train():
             for caption in captions:
                 pad_positions = (caption == pad_idx).nonzero(as_tuple=True)[0]
                 if len(pad_positions) == 0:
+                    # Pas de padding, la séquence est complète (inclut <EOS>)
                     length = max_len
                 else:
+                    # La longueur s'arrête au premier <PAD>
                     length = pad_positions[0].item()
-                if length == max_len:
-                    length = max_len - 1
+                    # Vérifie si le token juste avant le padding est <EOS>
+                    if caption[length-1].item() != full_dataset.vocab.word2idx["<EOS>"]:
+                        # Si <EOS> n'est pas juste avant le padding, on ajoute 1 pour inclure <EOS>
+                        length += 1
                 lengths.append(length)
 
             outputs = model(images, captions, lengths)      # (batch_size, seq_len+1, vocab_size)

@@ -20,7 +20,8 @@ train_loader, val_loader, full_dataset  = loader(
     desc_file="flickr30k_images/results.csv",
     transform=transform,
     batchsize=16,
-    worker=8
+    worker=8,
+    freq_threshold=2  # Pour cohérence avec l'entraînement
 )
 
 embed_size = 256
@@ -42,11 +43,12 @@ model.eval()
 
 def predict_image_caption(image_path, model, vocab, transform, device):
     image = Image.open(image_path).convert("RGB")
-    image_tensor = transform(image).to(device)
+    image_tensor = transform(image).unsqueeze(0).to(device)  # Add unsqueeze(0) and move to device
     with torch.no_grad():
         caption = model.caption(image_tensor, vocab)
     return " ".join(caption)
 
 if __name__ == "__main__":
+    model.eval()  # Ensure model is in eval mode
     caption = predict_image_caption(args.image, model, full_dataset.vocab, transform, device)
     print("📷 Caption générée :", caption)
