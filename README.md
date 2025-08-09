@@ -17,7 +17,7 @@ Ce projet vise à générer automatiquement des descriptions textuelles (caption
 1. **Cloner le dépôt**
 
    ```bash
-   git clone <url_du_repo>
+   git clone https://github.com/ZEP13/IMAGE_CAPTIONING
    cd IMAGE_CAPTIONING
    ```
 
